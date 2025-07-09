@@ -4,6 +4,8 @@ __pycache__/
 venv/
 *.sqlite3
 *.vscode
+.txt
+.env
 
 # Django
 *.log
