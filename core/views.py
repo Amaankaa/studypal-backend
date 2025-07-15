@@ -796,9 +796,9 @@ def get_group_resources(request, group_id):
         ).first()
         
         if shared_link:
-            # Return the shareable link URL
             resource_data = {
-                "id": resource.resource_id,
+                "id": resource.id,  # GroupResource ID (for deletion)
+                "resource_id": resource.resource_id,  # Original note/quiz/flashcard ID
                 "type": resource.resource_type,
                 "title": resource.title,
                 "url": f"/shared/{shared_link.link_id}",
@@ -815,9 +815,7 @@ def get_group_resources(request, group_id):
             }
             result.append(resource_data)
         else:
-            # If no shareable link found, create one automatically
             try:
-                # Create a shareable link for this resource
                 shared_link = SharedLink.objects.create(
                     content_type=resource.resource_type,
                     content_id=resource.resource_id,
@@ -827,9 +825,9 @@ def get_group_resources(request, group_id):
                     title=resource.title,
                     description=resource.description
                 )
-                
                 resource_data = {
-                    "id": resource.resource_id,
+                    "id": resource.id,
+                    "resource_id": resource.resource_id,
                     "type": resource.resource_type,
                     "title": resource.title,
                     "url": f"/shared/{shared_link.link_id}",
@@ -846,7 +844,6 @@ def get_group_resources(request, group_id):
                 }
                 result.append(resource_data)
             except Exception as e:
-                # Skip this resource if we can't create a shareable link
                 continue
     
     return Response(result)
