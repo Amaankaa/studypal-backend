@@ -83,6 +83,8 @@ def generate_quiz(request, note_id):
       ...
     ]
 
+    But don't let the questions have their choices infront, like A) or B) or C) or D) just only the options.
+    
     If you have generated questions for this note before, do NOT repeat them. Make these questions as different as possible from previous ones.
     """
 
@@ -92,7 +94,7 @@ def generate_quiz(request, note_id):
             return Response({"error": "AI service not configured"}, status=500)
 
         model = genai.GenerativeModel(
-            'gemini-2.5-flash',
+            'gemini-2.0-flash',
             generation_config={
                 "response_mime_type": "application/json",
                 "temperature": temperature
@@ -247,7 +249,6 @@ def generate_flashcards(request, note_id):
             'gemini-2.0-flash',
             generation_config={"response_mime_type": "application/json"}
         )
-        print(f"Calling Gemini API for flashcards with prompt length: {len(prompt)}")
         response = model.generate_content(prompt)
         content = response.text
         print(f"Received response from Gemini: {content[:200]}...")
@@ -255,8 +256,6 @@ def generate_flashcards(request, note_id):
         try:
             flashcard_data = json.loads(content)
         except json.JSONDecodeError as e:
-            print(f"JSON decode error: {e}")
-            print(f"Raw content: {content}")
             return Response({
                 "error": "Could not parse Gemini output",
                 "raw": content
@@ -1036,3 +1035,58 @@ def list_all_groups(request):
         })
     
     return Response(group_data)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_note(request):
+    title = request.data.get('title')
+    notebook_id = request.data.get('notebook_id')
+    prompt = request.data.get('prompt', '')
+
+    if not title or not notebook_id:
+        return Response({"error": "Title and notebook_id are required."}, status=400)
+
+    try:
+        notebook = Notebook.objects.get(id=notebook_id, user=request.user)
+    except Notebook.DoesNotExist:
+        return Response({"error": "Notebook not found or access denied."}, status=404)
+
+    ai_prompt = f"""
+Write a single, clear, and concise paragraph about the following topic for a student audience: '{title}'.
+{prompt}
+
+- Do not use headings, bullet points, or lists.
+- Respond ONLY with one well-written paragraph of plain text.
+- If you have generated notes for this notebook before, do NOT repeat them. Make these notes as different as possible from previous ones.
+
+Respond ONLY with a valid JSON object formatted like this:
+{{
+  "content": "generated content here"
+}}
+
+Do not include any other text, markdown, or explanation.
+"""
+
+    try:
+        if not hasattr(settings, 'GEMINI_API_KEY') or not settings.GEMINI_API_KEY:
+            return Response({"error": "AI service not configured"}, status=500)
+
+        model = genai.GenerativeModel(
+            'gemini-2.0-flash',
+            generation_config={"response_mime_type": "application/json"}
+        )
+        response = model.generate_content(ai_prompt)
+        content = response.text.strip()
+
+        note = Note.objects.create(
+            notebook=notebook,
+            title=title,
+            content=content
+        )
+        serializer = NoteSerializer(note)
+        return Response({
+            "message": "Note generated and saved successfully.",
+            "note": serializer.data
+        }, status=201)
+    except Exception as e:
+        return Response({"error": f"Failed to generate note: {str(e)}"}, status=500)

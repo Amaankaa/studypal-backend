@@ -4,10 +4,14 @@ from .models import Notebook, Note, Flashcard, Quiz, Question, StudyGroup, Group
 
 class NotebookSerializer(serializers.ModelSerializer):
     user = serializers.ReadOnlyField(source='user.username')
+    note_count = serializers.SerializerMethodField()
     
     class Meta:
         model = Notebook
         fields = '__all__'
+    
+    def get_note_count(self, obj):
+        return obj.note_set.count()
 
 class NoteSerializer(serializers.ModelSerializer):
     notebook_title = serializers.ReadOnlyField(source='notebook.title')

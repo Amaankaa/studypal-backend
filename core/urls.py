@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import NotebookViewSet, NoteViewSet, FlashcardViewSet, QuizViewSet, QuestionViewSet, generate_quiz, get_quiz, register_user, user_profile, generate_flashcards, get_flashcards_for_note, get_quizzes, create_study_group, list_user_groups, join_group, leave_group, invite_to_group, list_group_members, search_groups, get_group_details, list_group_shared_content, share_note_with_group, share_quiz_with_group, share_flashcard_with_group, create_shared_link, list_user_shared_links, delete_shared_link, access_shared_link, get_group_chat, send_group_message, get_group_resources, share_resource_to_group, like_resource, delete_group_resource, delete_shared_note_from_group, delete_shared_quiz_from_group, delete_shared_flashcard_from_group, delete_group, list_pending_invitations, accept_invitation, decline_invitation, list_all_groups
+from .views import NotebookViewSet, NoteViewSet, FlashcardViewSet, QuizViewSet, QuestionViewSet, generate_quiz, get_quiz, register_user, user_profile, generate_flashcards, get_flashcards_for_note, get_quizzes, create_study_group, list_user_groups, join_group, leave_group, invite_to_group, list_group_members, search_groups, get_group_details, list_group_shared_content, share_note_with_group, share_quiz_with_group, share_flashcard_with_group, create_shared_link, list_user_shared_links, delete_shared_link, access_shared_link, get_group_chat, send_group_message, get_group_resources, share_resource_to_group, like_resource, delete_group_resource, delete_shared_note_from_group, delete_shared_quiz_from_group, delete_shared_flashcard_from_group, delete_group, list_pending_invitations, accept_invitation, decline_invitation, list_all_groups, generate_note
 
 
 router = DefaultRouter()
@@ -11,6 +11,7 @@ router.register(r'quizzes', QuizViewSet, basename='quiz')
 router.register(r'questions', QuestionViewSet, basename='question')
 
 urlpatterns = [
+    path('notes/generate/', generate_note, name='generate_note'),
     path('', include(router.urls)),
 ]
 
