@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from .models import Notebook, Note, Flashcard, Quiz, Question, StudyGroup, GroupMembership, SharedNote, SharedQuiz, SharedFlashcard, SharedLink, ChatMessage, GroupResource, ResourceLike, GroupInvitation
+from .models import Notebook, Note, Flashcard, Quiz, Question, StudyGroup, GroupMembership, SharedNote, SharedQuiz, SharedFlashcard, SharedLink, ChatMessage, GroupResource, ResourceLike, GroupInvitation, QuizAttempt, ActivityLog, FlashcardAttempt
 
 class NotebookSerializer(serializers.ModelSerializer):
     user = serializers.ReadOnlyField(source='user.username')
@@ -173,3 +173,21 @@ class GroupInvitationSerializer(serializers.ModelSerializer):
     class Meta:
         model = GroupInvitation
         fields = ['id', 'group', 'invited_by', 'created_at', 'status']
+
+class QuizAttemptSerializer(serializers.ModelSerializer):
+    score = serializers.FloatField(read_only=True)
+    class Meta:
+        model = QuizAttempt
+        fields = ['id', 'user', 'quiz', 'score', 'answers', 'attempted_at']
+        read_only_fields = ['id', 'user', 'score', 'attempted_at']
+
+class ActivityLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ActivityLog
+        fields = '__all__'
+
+class FlashcardAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FlashcardAttempt
+        fields = ['id', 'user', 'flashcard', 'correct', 'reviewed_at']
+        read_only_fields = ['id', 'user', 'reviewed_at']

@@ -4,13 +4,14 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from .models import Notebook, Note, Flashcard, Quiz, Question, StudyGroup, GroupMembership, SharedNote, SharedQuiz, SharedFlashcard, SharedLink, ChatMessage, GroupResource, ResourceLike, GroupInvitation
-from .serializers import NotebookSerializer, NoteSerializer, FlashcardSerializer, QuizSerializer, QuestionSerializer, UserRegistrationSerializer, UserProfileSerializer, StudyGroupSerializer, GroupMembershipSerializer, SharedNoteSerializer, SharedQuizSerializer, SharedFlashcardSerializer, SharedLinkSerializer, ChatMessageSerializer, GroupResourceSerializer, GroupInvitationSerializer
+from .models import Notebook, Note, Flashcard, Quiz, Question, StudyGroup, GroupMembership, SharedNote, SharedQuiz, SharedFlashcard, SharedLink, ChatMessage, GroupResource, ResourceLike, GroupInvitation, QuizAttempt, FlashcardAttempt, UserStats
+from .serializers import NotebookSerializer, NoteSerializer, FlashcardSerializer, QuizSerializer, QuestionSerializer, UserRegistrationSerializer, UserProfileSerializer, StudyGroupSerializer, GroupMembershipSerializer, SharedNoteSerializer, SharedQuizSerializer, SharedFlashcardSerializer, SharedLinkSerializer, ChatMessageSerializer, GroupResourceSerializer, GroupInvitationSerializer, QuizAttemptSerializer, FlashcardAttemptSerializer
 
 import google.generativeai as genai
 import json
 from django.contrib.auth import get_user_model
 User = get_user_model()
+from django.db.models import Max, Avg, Count
 
 genai.configure(api_key=settings.GEMINI_API_KEY)
 
@@ -1090,3 +1091,187 @@ Do not include any other text, markdown, or explanation.
         }, status=201)
     except Exception as e:
         return Response({"error": f"Failed to generate note: {str(e)}"}, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_quiz_attempt(request):
+    """
+    Expects: {"quiz": <quiz_id>, "answers": ["A", "B", ...]}
+    Calculates score, saves attempt, returns result, and awards points.
+    """
+    user = request.user
+    serializer = QuizAttemptSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=400)
+    quiz_id = serializer.validated_data['quiz'].id if hasattr(serializer.validated_data['quiz'], 'id') else serializer.validated_data['quiz']
+    answers = serializer.validated_data['answers']
+    try:
+        quiz = Quiz.objects.get(id=quiz_id)
+    except Quiz.DoesNotExist:
+        return Response({"error": "Quiz not found"}, status=404)
+    questions = list(Question.objects.filter(quiz=quiz))
+    if len(answers) != len(questions):
+        return Response({"error": "Number of answers does not match number of questions"}, status=400)
+    correct_count = 0
+    for user_ans, q in zip(answers, questions):
+        if user_ans == q.correct:
+            correct_count += 1
+    score = (correct_count / len(questions)) * 100 if questions else 0
+    attempt = QuizAttempt.objects.create(
+        user=user,
+        quiz=quiz,
+        score=score,
+        answers=answers
+    )
+    # Award points: 10 per correct answer
+    user_stats, _ = UserStats.objects.get_or_create(user=user)
+    user_stats.total_points += correct_count * 10
+    user_stats.save()
+    out_serializer = QuizAttemptSerializer(attempt)
+    return Response({
+        "message": "Quiz attempt recorded.",
+        "score": score,
+        "total_questions": len(questions),
+        "correct": correct_count,
+        "attempt": out_serializer.data,
+        "points_awarded": correct_count * 10
+    }, status=201)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_flashcard_attempt(request):
+    """
+    Expects: {"flashcard": <flashcard_id>, "correct": true/false (optional)}
+    Saves attempt, returns result, and awards points for correct answers.
+    """
+    user = request.user
+    serializer = FlashcardAttemptSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=400)
+    flashcard_id = serializer.validated_data['flashcard'].id if hasattr(serializer.validated_data['flashcard'], 'id') else serializer.validated_data['flashcard']
+    correct = serializer.validated_data.get('correct', None)
+    try:
+        flashcard = Flashcard.objects.get(id=flashcard_id)
+    except Flashcard.DoesNotExist:
+        return Response({"error": "Flashcard not found"}, status=404)
+    attempt = FlashcardAttempt.objects.create(
+        user=user,
+        flashcard=flashcard,
+        correct=correct
+    )
+    # Award points: 10 per correct flashcard
+    points_awarded = 0
+    if correct is True:
+        user_stats, _ = UserStats.objects.get_or_create(user=user)
+        user_stats.total_points += 10
+        user_stats.save()
+        points_awarded = 10
+    out_serializer = FlashcardAttemptSerializer(attempt)
+    return Response({
+        "message": "Flashcard attempt recorded.",
+        "attempt": out_serializer.data,
+        "points_awarded": points_awarded
+    }, status=201)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_quiz_stats(request, quiz_id):
+    user = request.user
+    attempts = QuizAttempt.objects.filter(user=user, quiz_id=quiz_id)
+    total_attempts = attempts.count()
+    if total_attempts == 0:
+        return Response({
+            "quiz_id": quiz_id,
+            "attempts": 0,
+            "average_score": 0,
+            "best_score": 0,
+            "last_score": None
+        })
+    average_score = attempts.aggregate(avg=Avg('score'))['avg']
+    best_score = attempts.aggregate(max=Max('score'))['max']
+    last_score = attempts.order_by('-attempted_at').first().score
+    return Response({
+        "quiz_id": quiz_id,
+        "attempts": total_attempts,
+        "average_score": average_score,
+        "best_score": best_score,
+        "last_score": last_score
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_flashcard_stats(request, flashcard_id):
+    user = request.user
+    attempts = FlashcardAttempt.objects.filter(user=user, flashcard_id=flashcard_id)
+    total_attempts = attempts.count()
+    set_attempts = total_attempts // 5
+    correct_count = attempts.filter(correct=True).count()
+    last_reviewed = attempts.order_by('-reviewed_at').first().reviewed_at if total_attempts > 0 else None
+    accuracy = (correct_count / total_attempts) * 100 if total_attempts > 0 else 0
+    return Response({
+        "flashcard_id": flashcard_id,
+        "attempts": total_attempts,
+        "set_attempts": set_attempts,
+        "correct": correct_count,
+        "accuracy": accuracy,
+        "last_reviewed": last_reviewed
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_progress(request):
+    user = request.user
+    quiz_attempts = QuizAttempt.objects.filter(user=user)
+    flashcard_attempts = FlashcardAttempt.objects.filter(user=user)
+    total_quiz_attempts = quiz_attempts.count()
+    total_flashcard_attempts = flashcard_attempts.count()
+    flashcard_set_attempts = total_flashcard_attempts // 5
+    avg_quiz_score = quiz_attempts.aggregate(avg=Avg('score'))['avg'] or 0
+    correct_flashcards = flashcard_attempts.filter(correct=True).count()
+    flashcard_accuracy = (correct_flashcards / total_flashcard_attempts) * 100 if total_flashcard_attempts > 0 else 0
+    # Streaks (simple: count unique days with activity)
+    days = quiz_attempts.values_list('attempted_at', flat=True).union(
+        flashcard_attempts.values_list('reviewed_at', flat=True)
+    )
+    unique_days = set(dt.date() for dt in days)
+    current_streak = len(unique_days)
+    return Response({
+        "total_quiz_attempts": total_quiz_attempts,
+        "total_flashcard_attempts": total_flashcard_attempts,
+        "flashcard_set_attempts": flashcard_set_attempts,
+        "average_quiz_score": avg_quiz_score,
+        "flashcard_accuracy": flashcard_accuracy,
+        "current_streak_days": current_streak
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_leaderboard(request):
+    top_stats = UserStats.objects.select_related('user').order_by('-total_points')[:10]
+    leaderboard = [
+        {
+            'user_id': stat.user.id,
+            'username': stat.user.username,
+            'total_points': stat.total_points
+        }
+        for stat in top_stats
+    ]
+    # Optionally, include the requesting user's rank
+    user_stat = UserStats.objects.filter(user=request.user).first()
+    user_rank = None
+    if user_stat:
+        user_rank = UserStats.objects.filter(total_points__gt=user_stat.total_points).count() + 1
+    return Response({
+        'leaderboard': leaderboard,
+        'user_rank': user_rank,
+        'user_points': user_stat.total_points if user_stat else 0
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_points(request):
+    user_stat = UserStats.objects.filter(user=request.user).first()
+    if not user_stat:
+        return Response({'total_points': 0, 'breakdown': {}})
+    # For now, just return total points; breakdown can be expanded later
+    return Response({'total_points': user_stat.total_points, 'breakdown': {}})

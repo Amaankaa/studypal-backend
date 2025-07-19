@@ -208,3 +208,51 @@ class GroupInvitation(models.Model):
 
     class Meta:
         unique_together = ('group', 'invited_user', 'status')
+
+# --- Analytics & Progress Tracking Models ---
+
+class QuizAttempt(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
+    score = models.FloatField()
+    answers = models.JSONField()
+    attempted_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} attempted Quiz {self.quiz.id} at {self.attempted_at}" 
+
+class FlashcardAttempt(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    flashcard = models.ForeignKey(Flashcard, on_delete=models.CASCADE)
+    correct = models.BooleanField(null=True, blank=True)
+    reviewed_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} reviewed Flashcard {self.flashcard.id} at {self.reviewed_at}"
+
+class UserStats(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='stats')
+    total_points = models.IntegerField(default=0)
+    current_streak = models.IntegerField(default=0)
+    longest_streak = models.IntegerField(default=0)
+    last_activity = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Stats for {self.user.username}"
+
+class ActivityLog(models.Model):
+    ACTIVITY_TYPES = [
+        ('quiz', 'Quiz'),
+        ('flashcard', 'Flashcard'),
+        ('note', 'Note'),
+        ('login', 'Login'),
+        ('other', 'Other'),
+    ]
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    activity_type = models.CharField(max_length=20, choices=ACTIVITY_TYPES)
+    object_id = models.IntegerField(null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    details = models.JSONField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.user.username} {self.activity_type} at {self.timestamp}"
