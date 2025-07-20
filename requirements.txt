@@ -5,3 +5,6 @@ djangorestframework
 gunicorn
 psycopg2-binary 
 python-dotenv 
+django-cors-headers
+google-generativeai
+djangorestframework-simplejwt
