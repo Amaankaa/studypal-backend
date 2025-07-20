@@ -82,6 +82,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",  # Vite default
     "http://localhost:8080",   # Vue default
     "http://127.0.0.1:8080",  # Vue default
+    "https://study-pal-app.vercel.app",  # <-- Add this line
 ]
 
 CORS_ALLOW_CREDENTIALS = True
