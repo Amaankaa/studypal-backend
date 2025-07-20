@@ -1081,10 +1081,17 @@ Do not include any other text, markdown, or explanation.
         response = model.generate_content(ai_prompt)
         content = response.text.strip()
 
+        # Parse the JSON and extract only the plain text
+        try:
+            parsed = json.loads(content)
+            plain_text = parsed["content"]
+        except Exception:
+            plain_text = content  # fallback if not JSON
+
         note = Note.objects.create(
             notebook=notebook,
             title=title,
-            content=content
+            content=plain_text
         )
         serializer = NoteSerializer(note)
         return Response({
