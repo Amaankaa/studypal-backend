@@ -12,6 +12,8 @@ import json
 from django.contrib.auth import get_user_model
 User = get_user_model()
 from django.db.models import Max, Avg, Count
+from django.core.management import call_command
+from rest_framework.permissions import IsAdminUser
 
 genai.configure(api_key=settings.GEMINI_API_KEY)
 
@@ -199,22 +201,22 @@ def get_quiz(request, note_id):
     try:
         quizzes = Quiz.objects.filter(note__id=note_id, note__notebook__user=request.user).order_by('-created_at')
         if not quizzes.exists():
-            return Response({"error": "Quiz not found"}, status=404)
-        
+        return Response({"error": "Quiz not found"}, status=404)
+
         # Return the latest quiz (or let frontend choose)
         quiz = quizzes.first()
-        questions = Question.objects.filter(quiz=quiz)
-        serialized_questions = [
-            {
-                "question": q.question,
-                "options": q.options,
-                "correct": q.correct
-            } for q in questions
-        ]
-        return Response({
-            "quiz_id": quiz.id,
-            "questions": serialized_questions
-        })
+    questions = Question.objects.filter(quiz=quiz)
+    serialized_questions = [
+        {
+            "question": q.question,
+            "options": q.options,
+            "correct": q.correct
+        } for q in questions
+    ]
+    return Response({
+        "quiz_id": quiz.id,
+        "questions": serialized_questions
+    })
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
@@ -1275,3 +1277,8 @@ def get_user_points(request):
         return Response({'total_points': 0, 'breakdown': {}})
     # For now, just return total points; breakdown can be expanded later
     return Response({'total_points': user_stat.total_points, 'breakdown': {}})
+
+@api_view(['POST'])
+def run_migrations(request):
+    call_command('migrate')
+    return Response({"status": "migrations complete"})
