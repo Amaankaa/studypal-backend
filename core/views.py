@@ -201,22 +201,22 @@ def get_quiz(request, note_id):
     try:
         quizzes = Quiz.objects.filter(note__id=note_id, note__notebook__user=request.user).order_by('-created_at')
         if not quizzes.exists():
-        return Response({"error": "Quiz not found"}, status=404)
+            return Response({"error": "Quiz not found"}, status=404)
 
         # Return the latest quiz (or let frontend choose)
         quiz = quizzes.first()
-    questions = Question.objects.filter(quiz=quiz)
-    serialized_questions = [
-        {
-            "question": q.question,
-            "options": q.options,
-            "correct": q.correct
-        } for q in questions
-    ]
-    return Response({
-        "quiz_id": quiz.id,
-        "questions": serialized_questions
-    })
+        questions = Question.objects.filter(quiz=quiz)
+        serialized_questions = [
+            {
+                "question": q.question,
+                "options": q.options,
+                "correct": q.correct
+            } for q in questions
+        ]
+        return Response({
+            "quiz_id": quiz.id,
+            "questions": serialized_questions
+        })
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
