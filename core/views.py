@@ -1277,9 +1277,3 @@ def get_user_points(request):
         return Response({'total_points': 0, 'breakdown': {}})
     # For now, just return total points; breakdown can be expanded later
     return Response({'total_points': user_stat.total_points, 'breakdown': {}})
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def run_migrations(request):
-    call_command('migrate')
-    return Response({"status": "migrations complete"})
