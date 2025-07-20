@@ -51,16 +51,16 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
 }
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'studypal',
-        'USER': 'postgres',
-        'PASSWORD': 'root123',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'studypal',
+#         'USER': 'postgres',
+#         'PASSWORD': 'root123',
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#     }
+# }
 
 MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
