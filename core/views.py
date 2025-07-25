@@ -1112,31 +1112,51 @@ def submit_quiz_attempt(request):
     serializer = QuizAttemptSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=400)
+
     quiz_id = serializer.validated_data['quiz'].id if hasattr(serializer.validated_data['quiz'], 'id') else serializer.validated_data['quiz']
     answers = serializer.validated_data['answers']
+
     try:
         quiz = Quiz.objects.get(id=quiz_id)
     except Quiz.DoesNotExist:
         return Response({"error": "Quiz not found"}, status=404)
+
     questions = list(Question.objects.filter(quiz=quiz))
+
     if len(answers) != len(questions):
         return Response({"error": "Number of answers does not match number of questions"}, status=400)
+
     correct_count = 0
+
     for user_ans, q in zip(answers, questions):
-        if user_ans == q.correct:
+        # Map the correct answer text to its letter based on options
+        correct_letter = ''
+        for idx, opt in enumerate(q.options):
+            if opt.strip().lower() == q.correct.strip().lower():
+                correct_letter = chr(65 + idx)  # e.g., 0 -> 'A', 1 -> 'B'
+                break
+
+        if user_ans.upper() == correct_letter:
             correct_count += 1
+        else:
+            print(f"[DEBUG] User answered: {user_ans}, correct was: {correct_letter} ({q.correct})")
+
     score = (correct_count / len(questions)) * 100 if questions else 0
+
     attempt = QuizAttempt.objects.create(
         user=user,
         quiz=quiz,
         score=score,
         answers=answers
     )
+
     # Award points: 10 per correct answer
     user_stats, _ = UserStats.objects.get_or_create(user=user)
     user_stats.total_points += correct_count * 10
     user_stats.save()
+
     out_serializer = QuizAttemptSerializer(attempt)
+
     return Response({
         "message": "Quiz attempt recorded.",
         "score": score,
