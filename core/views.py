@@ -1129,17 +1129,33 @@ def submit_quiz_attempt(request):
     correct_count = 0
 
     for user_ans, q in zip(answers, questions):
-        # Map the correct answer text to its letter based on options
-        correct_letter = ''
-        for idx, opt in enumerate(q.options):
-            if opt.strip().lower() == q.correct.strip().lower():
-                correct_letter = chr(65 + idx)  # e.g., 0 -> 'A', 1 -> 'B'
-                break
+        # Clean function to remove letter prefixes
+        def clean_text(text):
+            import re
+            # Remove patterns like "A. ", "B. ", etc. from the beginning
+            return re.sub(r'^[A-D]\.\s*', '', text.strip())
+        
+        # Check if q.correct is already a letter (A, B, C, D)
+        if len(q.correct.strip()) == 1 and q.correct.strip().upper() in 'ABCD':
+            # q.correct is already a letter
+            correct_letter = q.correct.strip().upper()
+        else:
+            # q.correct is text, need to find matching option
+            correct_letter = ''
+            correct_text_clean = clean_text(q.correct).lower()
+            
+            for idx, opt in enumerate(q.options):
+                option_text_clean = clean_text(opt).lower()
+                if option_text_clean == correct_text_clean:
+                    correct_letter = chr(65 + idx)  # e.g., 0 -> 'A', 1 -> 'B'
+                    break
 
         if user_ans.upper() == correct_letter:
             correct_count += 1
         else:
             print(f"[DEBUG] User answered: {user_ans}, correct was: {correct_letter} ({q.correct})")
+            print(f"[DEBUG] Question: {q.question}")
+            print(f"[DEBUG] Options: {q.options}")
 
     score = (correct_count / len(questions)) * 100 if questions else 0
 
@@ -1165,7 +1181,6 @@ def submit_quiz_attempt(request):
         "attempt": out_serializer.data,
         "points_awarded": correct_count * 10
     }, status=201)
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def submit_flashcard_attempt(request):
