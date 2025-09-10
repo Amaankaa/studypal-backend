@@ -10,7 +10,6 @@ from .serializers import NotebookSerializer, NoteSerializer, FlashcardSerializer
 import google.generativeai as genai
 import json
 from django.contrib.auth import get_user_model
-import os
 User = get_user_model()
 from django.db.models import Max, Avg, Count
 from django.core.management import call_command
@@ -1322,23 +1321,4 @@ def get_user_points(request):
     return Response({'total_points': user_stat.total_points, 'breakdown': {}})
 
 
-# --- TEMPORARY: One-time migration trigger endpoint ---
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def run_migrations(request):
-    """
-    Temporary public endpoint to trigger Django migrations when shell access
-    is unavailable. Guarded only by MIGRATION_ENDPOINT_ENABLED env flag.
-    Remove after first successful run.
-    """
-    # Feature flag guard (keep this minimal protection)
-    if os.environ.get('MIGRATION_ENDPOINT_ENABLED', '').lower() != 'true':
-        return Response({'detail': 'Disabled'}, status=403)
-
-    try:
-        # Non-interactive, idempotent migrate
-        call_command('migrate', interactive=False, verbosity=1)
-        return Response({'status': 'ok', 'action': 'migrate'}, status=200)
-    except Exception as e:
-        # Do not leak full error details
-        return Response({'status': 'error', 'message': str(e)[:200]}, status=500)
+# (Temporary migration endpoint removed after successful run)
