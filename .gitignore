@@ -17,3 +17,5 @@ staticfiles/
 
 # pipenv
 Pipfile.lock
+
+documentation.md
